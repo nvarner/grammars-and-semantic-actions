@@ -1,65 +1,81 @@
+{-# OPTIONS -WnoUnsupportedIndexedMatch #-}
 module Semantics.GraphPath where
 
 open import Cubical.Foundations.Prelude
 open import Cubical.Foundations.Function
-open import Cubical.Foundations.HLevels
-open import Cubical.Foundations.Isomorphism
-open import Cubical.Foundations.Powerset
-open import Cubical.Foundations.Univalence
+open import Cubical.Foundations.Function.More
+open import Cubical.Foundations.Structure
+
 open import Cubical.Functions.Embedding
+
 open import Cubical.Relation.Nullary.Base
 open import Cubical.Relation.Nullary.Properties
-open import Cubical.Relation.Nullary.DecidablePropositions
-open import Cubical.Data.List hiding (init)
-open import Cubical.Data.FinSet
-open import Cubical.Data.FinSet.DecidablePredicate
-open import Cubical.Data.Sum as Sum
-open import Cubical.Data.Bool hiding (_⊕_)
-open import Cubical.Data.W.Indexed
-open import Cubical.Data.Maybe
-open import Cubical.Data.FinSet.Constructors
-open import Cubical.Data.Empty as ⊥
-open import Cubical.Data.Unit
-open import Cubical.Data.Nat
-open import Cubical.Data.Nat.Order.Recursive as Ord
-open import Cubical.Data.SumFin hiding (fsuc)
-open import Cubical.Foundations.Equiv renaming (_∙ₑ_ to _⋆_)
-open import Cubical.Data.Sigma
-open import Cubical.HITs.PropositionalTruncation as PT
 
-open import Semantics.Helper
+open import Cubical.Data.Nat hiding (elim)
+open import Cubical.Data.Sigma
+open import Cubical.Data.FinData
+open import Cubical.Data.FinData.More using (DecΣ)
+open import Cubical.Data.FinSet
+
+open import Cubical.HITs.PropositionalTruncation as PT hiding (elim ; rec ; map)
+
 private
   variable
     ℓ ℓ' : Level
+    n : ℕ
 
 record directedGraph : Type (ℓ-suc ℓ) where
   field
     states : FinSet ℓ
     directed-edges : FinSet ℓ
-    src : directed-edges .fst → states .fst
-    dst : directed-edges .fst → states .fst
+    src : ⟨ directed-edges ⟩ → ⟨ states ⟩
+    dst : ⟨ directed-edges ⟩ → ⟨ states ⟩
 
-  data reachable (start : states .fst) :
-    (end : states .fst) → Type ℓ where
-    nil : reachable start start
-    cons : ∀ (e : directed-edges .fst) →
-      reachable start (src e) →
-      reachable start (dst e)
+  record GraphWalk (length : ℕ) : Type ℓ where
+    field
+      vertices : Fin (suc length) → ⟨ states ⟩
+      edges : Fin length → ⟨ directed-edges ⟩
+      compat-src : (i : Fin length) → src (edges i) ≡ vertices (weakenFin i)
+      compat-dst : (i : Fin length) → dst (edges i) ≡ vertices (suc i)
 
-  reachDecProp :
-    ∀ start end → DecProp ℓ
-  fst (fst (reachDecProp start end)) = ∥ reachable start end ∥₁
-  snd (fst (reachDecProp start end)) = isPropPropTrunc
-  snd (reachDecProp start end) =
-    -- Branch on if the start state is equal to the end state
-    decRec
-      -- if yes then we have a path
-      (λ start=end → yes ∣ transport (cong (λ a → reachable start a) start=end) nil ∣₁)
-      -- if no then we have to search
-      (λ start≠end → {!!})
-      (isFinSet→Discrete (states .snd) start end)
+    start : ⟨ states ⟩
+    start = vertices zero
 
-  -- Set of reachable states from a start states
-  -- are the ones for which there exists a path
-  reachableFrom : states .fst → FinSetDecℙ states .fst
-  reachableFrom start end = DecProp∃ states (reachDecProp start)
+    end : ⟨ states ⟩
+    end = vertices (fromℕ length)
+
+  open GraphWalk
+
+  tailGW : GraphWalk (suc n) → GraphWalk n
+  tailGW gw .vertices = gw .vertices ∘ suc
+  tailGW gw .edges = gw .edges ∘ suc
+  tailGW gw .compat-src = gw .compat-src ∘ suc
+  tailGW gw .compat-dst = gw .compat-dst ∘ suc
+
+  consGW : (e : ⟨ directed-edges ⟩) (gw : GraphWalk n) → dst e ≡ start gw → GraphWalk (suc n)
+  consGW e gw p .vertices zero = src e
+  consGW e gw p .vertices (suc k) = gw .vertices k
+  consGW e gw p .edges zero = e
+  consGW e gw p .edges (suc k) = gw .edges k
+  consGW e gw p .compat-src zero = refl
+  consGW e gw p .compat-src (suc k) = gw .compat-src k
+  consGW e gw p .compat-dst zero = p
+  consGW e gw p .compat-dst (suc k) = gw .compat-dst k
+
+  hasUniqueVertices : GraphWalk n → Type _
+  hasUniqueVertices gw = isEmbedding (gw .vertices)
+
+  makeUnique : (gw : GraphWalk n) → Σ[ m ∈ ℕ ] Σ[ gw' ∈ GraphWalk m ] hasUniqueVertices gw' × (start gw ≡ start gw') × (end gw ≡ end gw')
+  makeUnique {zero} gw = {!!}
+  makeUnique {suc n} gw =
+    let newVert = gw .vertices zero in
+    let newEdge = gw .edges zero in
+    let n' , gw' , unique , startAgree , endAgree = makeUnique (tailGW gw) in
+    DecΣ _ (λ k → gw' .vertices k ≡ newVert) (λ k → isFinSet→Discrete (str states) _ newVert) & decRec
+      {!!}
+      (λ ¬ΣnewVert →
+        let gw'' = consGW newEdge gw' (gw .compat-dst zero ∙ startAgree) in
+        let uniqueGW'' : hasUniqueVertices gw''
+            uniqueGW'' = {!!} in
+        _ , gw'' , {!uniqueGW''!} , (sym $ gw .compat-src zero) , endAgree)
+
