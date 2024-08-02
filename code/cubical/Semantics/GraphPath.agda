@@ -15,8 +15,10 @@ open import Cubical.Data.Nat hiding (elim)
 open import Cubical.Data.Nat.Order
 open import Cubical.Data.Sigma
 open import Cubical.Data.FinData
-open import Cubical.Data.FinData.More using (DecΣ)
+open import Cubical.Data.FinData.More using (DecΣ ; Fin≡SumFin ; Fin≃Finℕ)
 open import Cubical.Data.FinSet
+open import Cubical.Data.FinSet.Cardinality
+open import Cubical.Data.FinSet.Constructors
 
 open import Cubical.HITs.PropositionalTruncation as PT hiding (elim ; rec ; map)
 
@@ -29,6 +31,9 @@ private
   variable
     ℓ ℓ' : Level
     n : ℕ
+
+isFinSetFin' : isFinSet (Fin n)
+isFinSetFin' = isFinSetFin & subst isFinSet (sym Fin≡SumFin)
 
 record directedGraph : Type (ℓ-suc ℓ) where
   field
@@ -50,7 +55,15 @@ record directedGraph : Type (ℓ-suc ℓ) where
     end : ⟨ states ⟩
     end = vertices (fromℕ length)
 
+  unquoteDecl GraphWalkIsoΣ = declareRecordIsoΣ GraphWalkIsoΣ (quote GraphWalk)
+
   open GraphWalk
+
+  hasUniqueVertices : GraphWalk n → Type _
+  hasUniqueVertices gw = isEmbedding (gw .vertices)
+
+  GraphPath : Type _
+  GraphPath = Σ[ n ∈ ℕ ] (n < card states) × (Σ[ gw ∈ GraphWalk n ] hasUniqueVertices gw)
 
   tailGW : GraphWalk (suc n) → GraphWalk n
   tailGW gw .vertices = gw .vertices ∘ suc
@@ -72,8 +85,8 @@ record directedGraph : Type (ℓ-suc ℓ) where
   drop gw zero = _ , gw , refl , refl
   drop {suc n} gw (suc k) = drop (tailGW gw) k
 
-  hasUniqueVertices : GraphWalk n → Type _
-  hasUniqueVertices gw = isEmbedding (gw .vertices)
+  hasUniqueVertices→boundedLength : (gw : GraphWalk n) → hasUniqueVertices gw → n < card states
+  hasUniqueVertices→boundedLength gw unique = card↪Inequality' (_ , isFinSetFin') states (gw .vertices) unique
 
   tailGWPresHasUniqueVertices : (gw : GraphWalk (suc n)) → hasUniqueVertices gw → hasUniqueVertices (tailGW gw)
   tailGWPresHasUniqueVertices gw unique = isEmbedding-∘ unique (injEmbedding isSetFin injSucFin)
@@ -126,3 +139,31 @@ record directedGraph : Type (ℓ-suc ℓ) where
     prop-fibs unique state ¬ΣnewVert (suc a , b) (suc c , d) =
       let p = isEmbedding→hasPropFibers unique state (a , b) (c , d) in
       (λ i → (suc (p i .fst)) , (p i .snd))
+
+  GraphWalk→GraphPath : (gw : GraphWalk n) → Σ[ gp ∈ GraphPath ] (start gw ≡ start (gp .snd .snd .fst)) × (end gw ≡ end (gp .snd .snd .fst))
+  GraphWalk→GraphPath gw =
+    let m , gw' , unique , agree = makeUnique gw in
+    let m<bound = hasUniqueVertices→boundedLength gw' unique in
+    (m , m<bound , gw' , unique) , agree
+
+  isFinSetGraphWalk : (n : ℕ) → isFinSet (GraphWalk n)
+  isFinSetGraphWalk n = EquivPresIsFinSet (isoToEquiv ∘ invIso $ GraphWalkIsoΣ {n}) $
+    isFinSetΣ
+      (_ , isFinSet→ (_ , isFinSetFin') states)
+      (λ vertices → _ , isFinSetΣ
+        (_ , isFinSet→ (_ , isFinSetFin') directed-edges)
+        (λ edges → _ , isFinSetΣ
+          (_ , isFinSetΠ (_ , isFinSetFin') (λ i → _ , isFinSet≡ states _ _))
+          (λ _ → _ , isFinSetΠ (_ , isFinSetFin') (λ i → _ , isFinSet≡ states _ _))))
+
+  isFinSetHasUniqueVertices : (gw : GraphWalk n) → isFinSet (hasUniqueVertices gw)
+  isFinSetHasUniqueVertices gw = isFinSetIsEmbedding (_ , isFinSetFin') states (gw .vertices)
+
+  isFinSetGraphPath : isFinSet GraphPath
+  isFinSetGraphPath = EquivPresIsFinSet (Σ-cong-equiv-fst Fin≃Finℕ ∙ₑ Σ-assoc-≃) $
+    isFinSetΣ
+      (_ , isFinSetFin')
+      (λ n → _ , isFinSetΣ
+        (_ , isFinSetGraphWalk _)
+        (λ gw → _ , isFinSetHasUniqueVertices gw))
+

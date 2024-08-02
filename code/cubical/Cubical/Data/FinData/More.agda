@@ -6,8 +6,13 @@ open import Cubical.Foundations.Function
 open import Cubical.Foundations.Isomorphism
 open import Cubical.Foundations.Univalence
 
+open import Cubical.Data.Fin
+  using ()
+  renaming (Fin to Finℕ)
 open import Cubical.Data.FinData
-open import Cubical.Data.Nat as Nat using (ℕ ; _+_)
+open import Cubical.Data.Nat as Nat
+  using (ℕ ; _+_)
+open import Cubical.Data.Nat.Order
 open import Cubical.Data.Sigma
 open import Cubical.Data.SumFin as SumFin
   using (fzero ; fsuc)
@@ -40,6 +45,16 @@ Fin≃SumFin = isoToEquiv FinSumFinIso
 
 Fin≡SumFin : Fin n ≡ SumFin n
 Fin≡SumFin = ua Fin≃SumFin
+
+FinFinℕIso : Iso (Fin n) (Finℕ n)
+FinFinℕIso = iso
+  (λ k → toℕ k , toℕ<n k)
+  (uncurry (fromℕ' _))
+  (λ (k , k<n) → Σ≡Prop (λ _ → isProp≤) (toFromId' _ k k<n))
+  (λ k → fromToId' _ k (toℕ<n k))
+
+Fin≃Finℕ : Fin n ≃ Finℕ n
+Fin≃Finℕ = isoToEquiv FinFinℕIso
 
 FinΣ≃ : (n : ℕ) (m : FinVec ℕ n) → Σ (Fin n) (Fin ∘ m) ≃ Fin (foldrFin _+_ 0 m)
 FinΣ≃ n m =
