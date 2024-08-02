@@ -96,6 +96,33 @@ record directedGraph : Type (ℓ-suc ℓ) where
       (λ ¬ΣnewVert →
         let gw'' = consGW newEdge gw' (gw .compat-dst zero ∙ startAgree) in
         let uniqueGW'' : hasUniqueVertices gw''
-            uniqueGW'' = {!!} in
+            uniqueGW'' =
+              hasPropFibers→isEmbedding (λ state → prop-fibs unique state ¬ΣnewVert)
+            in
         _ , gw'' , uniqueGW'' , (sym $ gw .compat-src zero) , endAgree)
-
+    where
+    prop-fibs :
+      (unique : (w x : Fin (suc (fst (makeUnique (tailGW gw))))) →
+                 isEquiv
+                 (λ p i → fst (snd (makeUnique (tailGW gw))) .vertices (p i))) →
+      (state : ⟨ states ⟩) →
+      (Σ (Fin (suc (fst (makeUnique (tailGW gw)))))
+       (λ k →
+          fst (snd (makeUnique (tailGW gw))) .vertices k ≡
+          gw .vertices zero) →
+       ⊥) →
+      isProp
+        (fiber
+        (λ z →
+           consGW (gw .edges zero) (makeUnique (tailGW gw) .snd .fst)
+           (gw .compat-dst zero ∙ (makeUnique (tailGW gw) .snd .snd .snd .fst)) .vertices z)
+        state)
+    prop-fibs unique state ¬ΣnewVert (zero , b) (zero , d) =
+      ΣPathP (refl , (isFinSet→isSet (states .snd) _ state b d))
+    prop-fibs unique state ¬ΣnewVert (zero , b) (suc c , d) =
+      ⊥.rec (¬ΣnewVert (c , d ∙ sym b ∙ compat-src gw zero))
+    prop-fibs unique state ¬ΣnewVert (suc a , b) (zero , d) =
+      ⊥.rec (¬ΣnewVert (a , (b ∙ sym d ∙ compat-src gw zero)))
+    prop-fibs unique state ¬ΣnewVert (suc a , b) (suc c , d) =
+      let p = isEmbedding→hasPropFibers unique state (a , b) (c , d) in
+      (λ i → (suc (p i .fst)) , (p i .snd))
