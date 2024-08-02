@@ -82,7 +82,7 @@ record directedGraph : Type (ℓ-suc ℓ) where
   hasUniqueVertices gw = isEmbedding (gw .vertices)
 
   makeUnique : (gw : GraphWalk n) → Σ[ m ∈ ℕ ] Σ[ gw' ∈ GraphWalk m ] hasUniqueVertices gw' × (start gw ≡ start gw') × (end gw ≡ end gw')
-  makeUnique {zero} gw = {!!}
+  makeUnique {zero} gw = zero , gw , injEmbedding (isFinSet→isSet (str states)) (λ _ → isContr→isProp isContrFin1 _ _) , refl , refl
   makeUnique {suc n} gw =
     let newVert = gw .vertices zero in
     let newEdge = gw .edges zero in
