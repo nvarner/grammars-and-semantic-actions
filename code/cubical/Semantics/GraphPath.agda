@@ -52,12 +52,6 @@ record directedGraph : Type (ℓ-suc ℓ) where
 
   open GraphWalk
 
-  trivial : ⟨ states ⟩ → GraphWalk 0
-  trivial v .vertices k = v
-  trivial v .edges ()
-  trivial v .compat-src ()
-  trivial v .compat-dst ()
-
   tailGW : GraphWalk (suc n) → GraphWalk n
   tailGW gw .vertices = gw .vertices ∘ suc
   tailGW gw .edges = gw .edges ∘ suc
@@ -81,6 +75,13 @@ record directedGraph : Type (ℓ-suc ℓ) where
   hasUniqueVertices : GraphWalk n → Type _
   hasUniqueVertices gw = isEmbedding (gw .vertices)
 
+  tailGWPresHasUniqueVertices : (gw : GraphWalk (suc n)) → hasUniqueVertices gw → hasUniqueVertices (tailGW gw)
+  tailGWPresHasUniqueVertices gw unique = isEmbedding-∘ unique (injEmbedding isSetFin injSucFin)
+
+  dropPresHasUniqueVertices : (gw : GraphWalk n) → hasUniqueVertices gw → (k : Fin (suc n)) → hasUniqueVertices (drop gw k .snd .fst)
+  dropPresHasUniqueVertices gw unique zero = unique
+  dropPresHasUniqueVertices {suc n} gw unique (suc k) = dropPresHasUniqueVertices (tailGW gw) (tailGWPresHasUniqueVertices gw unique) k
+
   makeUnique : (gw : GraphWalk n) → Σ[ m ∈ ℕ ] Σ[ gw' ∈ GraphWalk m ] hasUniqueVertices gw' × (start gw ≡ start gw') × (end gw ≡ end gw')
   makeUnique {zero} gw = zero , gw , injEmbedding (isFinSet→isSet (str states)) (λ _ → isContr→isProp isContrFin1 _ _) , refl , refl
   makeUnique {suc n} gw =
@@ -90,7 +91,8 @@ record directedGraph : Type (ℓ-suc ℓ) where
     DecΣ _ (λ k → gw' .vertices k ≡ newVert) (λ k → isFinSet→Discrete (str states) _ newVert) & decRec
       (λ (k , p) →
         let n'' , gw'' , startAgree' , endAgree' = drop gw' k in
-        n'' , gw'' , {!!} , sym p ∙ startAgree' , endAgree ∙ endAgree')
+        let unique' = dropPresHasUniqueVertices gw' unique k in
+        n'' , gw'' , unique' , sym p ∙ startAgree' , endAgree ∙ endAgree')
       (λ ¬ΣnewVert →
         let gw'' = consGW newEdge gw' (gw .compat-dst zero ∙ startAgree) in
         let uniqueGW'' : hasUniqueVertices gw''
