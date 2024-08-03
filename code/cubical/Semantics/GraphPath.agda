@@ -11,14 +11,14 @@ open import Cubical.Foundations.Structure
 open import Cubical.Functions.Embedding
 
 open import Cubical.Data.Empty as ⊥ hiding (elim ; rec)
-open import Cubical.Data.Nat hiding (elim)
-open import Cubical.Data.Nat.Order
-open import Cubical.Data.Sigma
 open import Cubical.Data.FinData
 open import Cubical.Data.FinData.More using (DecΣ ; Fin≡SumFin ; Fin≃Finℕ)
 open import Cubical.Data.FinSet
 open import Cubical.Data.FinSet.Cardinality
 open import Cubical.Data.FinSet.Constructors
+open import Cubical.Data.Nat hiding (elim)
+open import Cubical.Data.Nat.Order
+open import Cubical.Data.Sigma
 
 open import Cubical.HITs.PropositionalTruncation as PT hiding (elim ; rec ; map)
 
@@ -69,12 +69,6 @@ record directedGraph : Type (ℓ-suc ℓ) where
   Reachable u v = PT.∥ Σ[ n ∈ ℕ ] Σ[ gw ∈ GraphWalk n ] (u ≡ start gw) × (v ≡ end gw) ∥₁
   PathReachable u v = PT.∥ Σ[ gp ∈ GraphPath ] (u ≡ start (gp .snd .snd .fst)) × (v ≡ end (gp .snd .snd .fst)) ∥₁
 
-  tail : GraphWalk (suc n) → GraphWalk n
-  tail gw .vertices = gw .vertices ∘ suc
-  tail gw .edges = gw .edges ∘ suc
-  tail gw .compat-src = gw .compat-src ∘ suc
-  tail gw .compat-dst = gw .compat-dst ∘ suc
-
   cons : (e : ⟨ directed-edges ⟩) (gw : GraphWalk n) → dst e ≡ start gw → GraphWalk (suc n)
   cons e gw p .vertices zero = src e
   cons e gw p .vertices (suc k) = gw .vertices k
@@ -85,6 +79,12 @@ record directedGraph : Type (ℓ-suc ℓ) where
   cons e gw p .compat-dst zero = p
   cons e gw p .compat-dst (suc k) = gw .compat-dst k
 
+  tail : GraphWalk (suc n) → GraphWalk n
+  tail gw .vertices = gw .vertices ∘ suc
+  tail gw .edges = gw .edges ∘ suc
+  tail gw .compat-src = gw .compat-src ∘ suc
+  tail gw .compat-dst = gw .compat-dst ∘ suc
+
   drop : (gw : GraphWalk n) → (k : Fin (suc n)) → Σ[ m ∈ ℕ ] Σ[ gw' ∈ GraphWalk m ] (gw .vertices k ≡ start gw') × (end gw ≡ end gw')
   drop gw zero = _ , gw , refl , refl
   drop {suc n} gw (suc k) = drop (tail gw) k
@@ -92,12 +92,12 @@ record directedGraph : Type (ℓ-suc ℓ) where
   hasUniqueVertices→boundedLength : (gw : GraphWalk n) → hasUniqueVertices gw → n < card states
   hasUniqueVertices→boundedLength gw unique = card↪Inequality' (_ , isFinSetFin') states (gw .vertices) unique
 
-  tailGWPresHasUniqueVertices : (gw : GraphWalk (suc n)) → hasUniqueVertices gw → hasUniqueVertices (tail gw)
-  tailGWPresHasUniqueVertices gw unique = isEmbedding-∘ unique (injEmbedding isSetFin injSucFin)
+  tailPresHasUniqueVertices : (gw : GraphWalk (suc n)) → hasUniqueVertices gw → hasUniqueVertices (tail gw)
+  tailPresHasUniqueVertices gw unique = isEmbedding-∘ unique (injEmbedding isSetFin injSucFin)
 
   dropPresHasUniqueVertices : (gw : GraphWalk n) → hasUniqueVertices gw → (k : Fin (suc n)) → hasUniqueVertices (drop gw k .snd .fst)
   dropPresHasUniqueVertices gw unique zero = unique
-  dropPresHasUniqueVertices {suc n} gw unique (suc k) = dropPresHasUniqueVertices (tail gw) (tailGWPresHasUniqueVertices gw unique) k
+  dropPresHasUniqueVertices {suc n} gw unique (suc k) = dropPresHasUniqueVertices (tail gw) (tailPresHasUniqueVertices gw unique) k
 
   makeUnique : (gw : GraphWalk n) → Σ[ m ∈ ℕ ] Σ[ gw' ∈ GraphWalk m ] hasUniqueVertices gw' × (start gw ≡ start gw') × (end gw ≡ end gw')
   makeUnique {zero} gw = zero , gw , injEmbedding (isFinSet→isSet (str states)) (λ _ → isContr→isProp isContrFin1 _ _) , refl , refl
@@ -112,37 +112,14 @@ record directedGraph : Type (ℓ-suc ℓ) where
         n'' , gw'' , unique' , sym p ∙ startAgree' , endAgree ∙ endAgree')
       (λ ¬ΣnewVert →
         let gw'' = cons newEdge gw' (gw .compat-dst zero ∙ startAgree) in
-        let uniqueGW'' : hasUniqueVertices gw''
-            uniqueGW'' =
-              hasPropFibers→isEmbedding (λ state → prop-fibs unique state ¬ΣnewVert)
+        let uniqueGW'' = injEmbedding (isFinSet→isSet (str states))
+              λ { {zero} {zero} p → refl
+                ; {zero} {suc j} p → ¬ΣnewVert (j , sym p ∙ gw .compat-src zero) & ⊥.rec
+                ; {suc i} {zero} p → ¬ΣnewVert (i , p ∙ gw .compat-src zero) & ⊥.rec
+                ; {suc i} {suc j} p → congS suc $ isEmbedding→Inj unique i j p
+                }
             in
         _ , gw'' , uniqueGW'' , (sym $ gw .compat-src zero) , endAgree)
-    where
-    prop-fibs :
-      (unique : (w x : Fin (suc (fst (makeUnique (tail gw))))) →
-                 isEquiv
-                 (λ p i → fst (snd (makeUnique (tail gw))) .vertices (p i))) →
-      (state : ⟨ states ⟩) →
-      (Σ (Fin (suc (fst (makeUnique (tail gw)))))
-       (λ k →
-          fst (snd (makeUnique (tail gw))) .vertices k ≡
-          gw .vertices zero) →
-       ⊥) →
-      isProp
-        (fiber
-        (λ z →
-           cons (gw .edges zero) (makeUnique (tail gw) .snd .fst)
-           (gw .compat-dst zero ∙ (makeUnique (tail gw) .snd .snd .snd .fst)) .vertices z)
-        state)
-    prop-fibs unique state ¬ΣnewVert (zero , b) (zero , d) =
-      ΣPathP (refl , (isFinSet→isSet (states .snd) _ state b d))
-    prop-fibs unique state ¬ΣnewVert (zero , b) (suc c , d) =
-      ⊥.rec (¬ΣnewVert (c , d ∙ sym b ∙ compat-src gw zero))
-    prop-fibs unique state ¬ΣnewVert (suc a , b) (zero , d) =
-      ⊥.rec (¬ΣnewVert (a , (b ∙ sym d ∙ compat-src gw zero)))
-    prop-fibs unique state ¬ΣnewVert (suc a , b) (suc c , d) =
-      let p = isEmbedding→hasPropFibers unique state (a , b) (c , d) in
-      (λ i → (suc (p i .fst)) , (p i .snd))
 
   GraphWalk→GraphPath : (gw : GraphWalk n) → Σ[ gp ∈ GraphPath ] (start gw ≡ start (gp .snd .snd .fst)) × (end gw ≡ end (gp .snd .snd .fst))
   GraphWalk→GraphPath gw =
