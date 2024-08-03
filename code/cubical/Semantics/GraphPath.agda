@@ -69,49 +69,49 @@ record directedGraph : Type (ℓ-suc ℓ) where
   Reachable u v = PT.∥ Σ[ n ∈ ℕ ] Σ[ gw ∈ GraphWalk n ] (u ≡ start gw) × (v ≡ end gw) ∥₁
   PathReachable u v = PT.∥ Σ[ gp ∈ GraphPath ] (u ≡ start (gp .snd .snd .fst)) × (v ≡ end (gp .snd .snd .fst)) ∥₁
 
-  tailGW : GraphWalk (suc n) → GraphWalk n
-  tailGW gw .vertices = gw .vertices ∘ suc
-  tailGW gw .edges = gw .edges ∘ suc
-  tailGW gw .compat-src = gw .compat-src ∘ suc
-  tailGW gw .compat-dst = gw .compat-dst ∘ suc
+  tail : GraphWalk (suc n) → GraphWalk n
+  tail gw .vertices = gw .vertices ∘ suc
+  tail gw .edges = gw .edges ∘ suc
+  tail gw .compat-src = gw .compat-src ∘ suc
+  tail gw .compat-dst = gw .compat-dst ∘ suc
 
-  consGW : (e : ⟨ directed-edges ⟩) (gw : GraphWalk n) → dst e ≡ start gw → GraphWalk (suc n)
-  consGW e gw p .vertices zero = src e
-  consGW e gw p .vertices (suc k) = gw .vertices k
-  consGW e gw p .edges zero = e
-  consGW e gw p .edges (suc k) = gw .edges k
-  consGW e gw p .compat-src zero = refl
-  consGW e gw p .compat-src (suc k) = gw .compat-src k
-  consGW e gw p .compat-dst zero = p
-  consGW e gw p .compat-dst (suc k) = gw .compat-dst k
+  cons : (e : ⟨ directed-edges ⟩) (gw : GraphWalk n) → dst e ≡ start gw → GraphWalk (suc n)
+  cons e gw p .vertices zero = src e
+  cons e gw p .vertices (suc k) = gw .vertices k
+  cons e gw p .edges zero = e
+  cons e gw p .edges (suc k) = gw .edges k
+  cons e gw p .compat-src zero = refl
+  cons e gw p .compat-src (suc k) = gw .compat-src k
+  cons e gw p .compat-dst zero = p
+  cons e gw p .compat-dst (suc k) = gw .compat-dst k
 
   drop : (gw : GraphWalk n) → (k : Fin (suc n)) → Σ[ m ∈ ℕ ] Σ[ gw' ∈ GraphWalk m ] (gw .vertices k ≡ start gw') × (end gw ≡ end gw')
   drop gw zero = _ , gw , refl , refl
-  drop {suc n} gw (suc k) = drop (tailGW gw) k
+  drop {suc n} gw (suc k) = drop (tail gw) k
 
   hasUniqueVertices→boundedLength : (gw : GraphWalk n) → hasUniqueVertices gw → n < card states
   hasUniqueVertices→boundedLength gw unique = card↪Inequality' (_ , isFinSetFin') states (gw .vertices) unique
 
-  tailGWPresHasUniqueVertices : (gw : GraphWalk (suc n)) → hasUniqueVertices gw → hasUniqueVertices (tailGW gw)
+  tailGWPresHasUniqueVertices : (gw : GraphWalk (suc n)) → hasUniqueVertices gw → hasUniqueVertices (tail gw)
   tailGWPresHasUniqueVertices gw unique = isEmbedding-∘ unique (injEmbedding isSetFin injSucFin)
 
   dropPresHasUniqueVertices : (gw : GraphWalk n) → hasUniqueVertices gw → (k : Fin (suc n)) → hasUniqueVertices (drop gw k .snd .fst)
   dropPresHasUniqueVertices gw unique zero = unique
-  dropPresHasUniqueVertices {suc n} gw unique (suc k) = dropPresHasUniqueVertices (tailGW gw) (tailGWPresHasUniqueVertices gw unique) k
+  dropPresHasUniqueVertices {suc n} gw unique (suc k) = dropPresHasUniqueVertices (tail gw) (tailGWPresHasUniqueVertices gw unique) k
 
   makeUnique : (gw : GraphWalk n) → Σ[ m ∈ ℕ ] Σ[ gw' ∈ GraphWalk m ] hasUniqueVertices gw' × (start gw ≡ start gw') × (end gw ≡ end gw')
   makeUnique {zero} gw = zero , gw , injEmbedding (isFinSet→isSet (str states)) (λ _ → isContr→isProp isContrFin1 _ _) , refl , refl
   makeUnique {suc n} gw =
     let newVert = gw .vertices zero in
     let newEdge = gw .edges zero in
-    let n' , gw' , unique , startAgree , endAgree = makeUnique (tailGW gw) in
+    let n' , gw' , unique , startAgree , endAgree = makeUnique (tail gw) in
     DecΣ _ (λ k → gw' .vertices k ≡ newVert) (λ k → isFinSet→Discrete (str states) _ newVert) & decRec
       (λ (k , p) →
         let n'' , gw'' , startAgree' , endAgree' = drop gw' k in
         let unique' = dropPresHasUniqueVertices gw' unique k in
         n'' , gw'' , unique' , sym p ∙ startAgree' , endAgree ∙ endAgree')
       (λ ¬ΣnewVert →
-        let gw'' = consGW newEdge gw' (gw .compat-dst zero ∙ startAgree) in
+        let gw'' = cons newEdge gw' (gw .compat-dst zero ∙ startAgree) in
         let uniqueGW'' : hasUniqueVertices gw''
             uniqueGW'' =
               hasPropFibers→isEmbedding (λ state → prop-fibs unique state ¬ΣnewVert)
@@ -119,20 +119,20 @@ record directedGraph : Type (ℓ-suc ℓ) where
         _ , gw'' , uniqueGW'' , (sym $ gw .compat-src zero) , endAgree)
     where
     prop-fibs :
-      (unique : (w x : Fin (suc (fst (makeUnique (tailGW gw))))) →
+      (unique : (w x : Fin (suc (fst (makeUnique (tail gw))))) →
                  isEquiv
-                 (λ p i → fst (snd (makeUnique (tailGW gw))) .vertices (p i))) →
+                 (λ p i → fst (snd (makeUnique (tail gw))) .vertices (p i))) →
       (state : ⟨ states ⟩) →
-      (Σ (Fin (suc (fst (makeUnique (tailGW gw)))))
+      (Σ (Fin (suc (fst (makeUnique (tail gw)))))
        (λ k →
-          fst (snd (makeUnique (tailGW gw))) .vertices k ≡
+          fst (snd (makeUnique (tail gw))) .vertices k ≡
           gw .vertices zero) →
        ⊥) →
       isProp
         (fiber
         (λ z →
-           consGW (gw .edges zero) (makeUnique (tailGW gw) .snd .fst)
-           (gw .compat-dst zero ∙ (makeUnique (tailGW gw) .snd .snd .snd .fst)) .vertices z)
+           cons (gw .edges zero) (makeUnique (tail gw) .snd .fst)
+           (gw .compat-dst zero ∙ (makeUnique (tail gw) .snd .snd .snd .fst)) .vertices z)
         state)
     prop-fibs unique state ¬ΣnewVert (zero , b) (zero , d) =
       ΣPathP (refl , (isFinSet→isSet (states .snd) _ state b d))
@@ -155,8 +155,8 @@ record directedGraph : Type (ℓ-suc ℓ) where
 
   PathReachable≃Reachable : (u v : ⟨ states ⟩) → PathReachable u v ≃ Reachable u v
   PathReachable≃Reachable u v = propBiimpl→Equiv isPropPropTrunc isPropPropTrunc
-    (PT.map λ (gp , uStart , vEnd) → GraphPath→GraphWalk gp |> map-snd (map-snd λ (s , e) → uStart ∙ s , vEnd ∙ e))
-    (PT.map λ (n , gw , uStart , vEnd) → GraphWalk→GraphPath gw |> map-snd λ (s , e) → uStart ∙ s , vEnd ∙ e)
+    (PT.map λ (gp , uStart , vEnd) → GraphPath→GraphWalk gp & map-snd (map-snd λ (s , e) → uStart ∙ s , vEnd ∙ e))
+    (PT.map λ (n , gw , uStart , vEnd) → GraphWalk→GraphPath gw & map-snd λ (s , e) → uStart ∙ s , vEnd ∙ e)
 
   isFinSetGraphWalk : (n : ℕ) → isFinSet (GraphWalk n)
   isFinSetGraphWalk n = EquivPresIsFinSet (isoToEquiv ∘ invIso $ GraphWalkIsoΣ {n}) $
