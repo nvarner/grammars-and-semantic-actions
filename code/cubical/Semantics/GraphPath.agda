@@ -65,6 +65,10 @@ record directedGraph : Type (ℓ-suc ℓ) where
   GraphPath : Type _
   GraphPath = Σ[ n ∈ ℕ ] (n < card states) × (Σ[ gw ∈ GraphWalk n ] hasUniqueVertices gw)
 
+  Reachable PathReachable : ⟨ states ⟩ → ⟨ states ⟩ → Type _
+  Reachable u v = PT.∥ Σ[ n ∈ ℕ ] Σ[ gw ∈ GraphWalk n ] (u ≡ start gw) × (v ≡ end gw) ∥₁
+  PathReachable u v = PT.∥ Σ[ gp ∈ GraphPath ] (u ≡ start (gp .snd .snd .fst)) × (v ≡ end (gp .snd .snd .fst)) ∥₁
+
   tailGW : GraphWalk (suc n) → GraphWalk n
   tailGW gw .vertices = gw .vertices ∘ suc
   tailGW gw .edges = gw .edges ∘ suc
@@ -146,6 +150,14 @@ record directedGraph : Type (ℓ-suc ℓ) where
     let m<bound = hasUniqueVertices→boundedLength gw' unique in
     (m , m<bound , gw' , unique) , agree
 
+  GraphPath→GraphWalk : (gp : GraphPath) → Σ[ n ∈ ℕ ] Σ[ gw ∈ GraphWalk n ] (start (gp .snd .snd .fst) ≡ start gw) × (end (gp .snd .snd .fst) ≡ end gw)
+  GraphPath→GraphWalk (n , _ , gw , _) = n , gw , refl , refl
+
+  PathReachable≃Reachable : (u v : ⟨ states ⟩) → PathReachable u v ≃ Reachable u v
+  PathReachable≃Reachable u v = propBiimpl→Equiv isPropPropTrunc isPropPropTrunc
+    (PT.map λ (gp , uStart , vEnd) → GraphPath→GraphWalk gp |> map-snd (map-snd λ (s , e) → uStart ∙ s , vEnd ∙ e))
+    (PT.map λ (n , gw , uStart , vEnd) → GraphWalk→GraphPath gw |> map-snd λ (s , e) → uStart ∙ s , vEnd ∙ e)
+
   isFinSetGraphWalk : (n : ℕ) → isFinSet (GraphWalk n)
   isFinSetGraphWalk n = EquivPresIsFinSet (isoToEquiv ∘ invIso $ GraphWalkIsoΣ {n}) $
     isFinSetΣ
@@ -166,4 +178,14 @@ record directedGraph : Type (ℓ-suc ℓ) where
       (λ n → _ , isFinSetΣ
         (_ , isFinSetGraphWalk _)
         (λ gw → _ , isFinSetHasUniqueVertices gw))
+
+  DecPathReachable : (u v : ⟨ states ⟩) → Dec (PathReachable u v)
+  DecPathReachable u v = isFinSet→Dec∥∥ $ isFinSetΣ
+    (_ , isFinSetGraphPath)
+    (λ gp → _ , isFinSet×
+      (_ , isFinSet≡ states _ _)
+      (_ , isFinSet≡ states _ _))
+
+  DecReachable : (u v : ⟨ states ⟩) → Dec (Reachable u v)
+  DecReachable u v = EquivPresDec (PathReachable≃Reachable u v) (DecPathReachable u v)
 
