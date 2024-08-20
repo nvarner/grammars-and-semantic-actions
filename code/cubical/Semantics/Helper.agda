@@ -5,6 +5,7 @@ open import Cubical.Foundations.HLevels
 open import Cubical.Foundations.Isomorphism
 open import Cubical.Foundations.Powerset
 open import Cubical.Foundations.Function
+open import Cubical.Foundations.Structure
 open import Cubical.Foundations.Univalence
 open import Cubical.Functions.Embedding
 open import Cubical.Relation.Nullary.Base
@@ -218,8 +219,8 @@ DecProp∃ X P =
 -- --
 
 DecPropΣ :
-  ∀ {ℓ} → (A : DecProp ℓ) → (B : A .fst .fst → DecProp ℓ) →
-  DecProp ℓ
+  ∀ {ℓ ℓ'} (A : DecProp ℓ) (B : A .fst .fst → DecProp ℓ') →
+  DecProp (ℓ-max ℓ ℓ')
 fst (fst (DecPropΣ A B)) = Σ[ a ∈ A .fst .fst ] B a .fst .fst
 snd (fst (DecPropΣ A B)) = isPropΣ (A .fst .snd) (λ a → B a .fst .snd)
 snd (DecPropΣ A B) =
@@ -243,9 +244,12 @@ snd (DecPropΣ A B) =
 -- inhabDecRec ifyes ifno (no ¬p) = {!!}
 
 DecProp× :
-  ∀ {ℓ} → (A : DecProp ℓ) → (B : DecProp ℓ) →
-  DecProp ℓ
+  ∀ {ℓ ℓ'} (A : DecProp ℓ) (B : DecProp ℓ') →
+  DecProp (ℓ-max ℓ ℓ')
 DecProp× A B = DecPropΣ A (λ _ → B)
+
+DecProp≡ : ∀ {ℓ} {A : Type ℓ} → Discrete A → A → A → DecProp ℓ
+DecProp≡ disc x y = ((x ≡ y) , Discrete→isSet disc x y) , disc x y
 
 Bool-iso-DecProp' : ∀ {ℓ} → Iso (Bool) (DecProp' ℓ)
 fst (fun Bool-iso-DecProp' false) = ⊥*
@@ -382,3 +386,11 @@ snd (Decℙ'→FinSet A X) = isFinSetSub A X
 
 Decℙ→FinSet : ∀ {ℓ} (A : FinSet ℓ) → Decℙ (A .fst) → FinSet ℓ
 Decℙ→FinSet A X = Decℙ'→FinSet A (DecℙIso (A .fst) .fun X )
+
+-- I'm pretty sure this is the `bind` of a FinSet monad
+FinSetDecℙ∃ :
+  ∀ {ℓ} (A B : FinSet ℓ) →
+  ⟨ FinSetDecℙ A ⟩ →
+  (⟨ A ⟩ → ⟨ FinSetDecℙ B ⟩) → ⟨ FinSetDecℙ B ⟩
+FinSetDecℙ∃ A B ℙA f b = DecProp∃ A (λ a → DecProp× (ℙA a) (f a b))
+

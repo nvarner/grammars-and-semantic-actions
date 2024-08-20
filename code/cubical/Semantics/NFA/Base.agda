@@ -7,11 +7,13 @@ open import Cubical.Foundations.Function
 open import Cubical.Foundations.HLevels
 open import Cubical.Foundations.Isomorphism
 open import Cubical.Foundations.Powerset
+open import Cubical.Foundations.Structure
 open import Cubical.Functions.Embedding
 open import Cubical.Relation.Nullary.Base
 open import Cubical.Relation.Nullary.Properties
 open import Cubical.Relation.Nullary.DecidablePropositions
 open import Cubical.Data.List hiding (init)
+open import Cubical.Data.FinData.More using (DecΣ)
 open import Cubical.Data.FinSet
 open import Cubical.Data.FinSet.DecidablePredicate
 open import Cubical.Data.Sum as Sum
@@ -36,6 +38,7 @@ open import Semantics.String
 private
   variable ℓΣ₀ ℓN ℓN' ℓP ℓ : Level
 
+-- should Σ₀ be a FinSet (or Discrete or...)?
 module NFADefs ℓN (Σ₀ : Type ℓ-zero) where
   record NFA : Type (ℓ-suc ℓN) where
     field
@@ -58,6 +61,15 @@ module NFADefs ℓN (Σ₀ : Type ℓ-zero) where
 
     rej? : Q .fst → Grammar {Σ₀} ℓN
     rej? q = DecProp-grammar' {ℓG = ℓN} (negateDecProp (isAcc q))
+
+    hasTransition : Discrete Σ₀ → ⟨ Q ⟩ → Σ₀ → ⟨ Q ⟩ → DecProp ℓN
+    hasTransition discΣ₀ src' label' dst' =
+      DecProp∃ transition (λ t →
+        DecProp×
+          (DecProp≡ discΣ₀ label' (label t))
+          (DecProp×
+            (DecProp≡ decEqQ src' (src t))
+            (DecProp≡ decEqQ dst' (dst t))))
 
     module _ (q-start : Q .fst) where
       data Trace : (q-end : Q .fst) → Grammar ℓN where

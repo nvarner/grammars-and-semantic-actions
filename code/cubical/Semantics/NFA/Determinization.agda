@@ -7,6 +7,7 @@ open import Cubical.Foundations.Function
 open import Cubical.Foundations.HLevels
 open import Cubical.Foundations.Isomorphism
 open import Cubical.Foundations.Powerset
+open import Cubical.Foundations.Structure
 open import Cubical.Functions.Embedding
 open import Cubical.Relation.Nullary.Base
 open import Cubical.Relation.Nullary.Properties
@@ -44,6 +45,7 @@ module _ {ℓN}
   ((Σ₀ , isFinSetΣ₀) : FinSet ℓ-zero)
   (N : NFA ℓN Σ₀) where
   open NFA
+  private module N = NFA N
 
   -- The NFA without labelled transitions, viewed as a directed graph
   open directedGraph
@@ -59,6 +61,13 @@ module _ {ℓN}
   snd (fst (ε-reach q-start q-end)) = isPropPropTrunc
   snd (ε-reach q-start q-end) = DecReachable ε-graph q-start q-end
 
+  -- TODO: perhaps prove this is a closure, i.e. that the function is idempotent
+  ε-closure : ⟨ FinSetDecℙ N.Q ⟩ → ⟨ FinSetDecℙ N.Q ⟩
+  ε-closure X = FinSetDecℙ∃ N.Q N.Q X ε-reach
+
+  δFunN : ⟨ N .Q ⟩ → Σ₀ → ⟨ FinSetDecℙ (N .Q) ⟩
+  δFunN = N.hasTransition (isFinSet→Discrete isFinSetΣ₀)
+
   open DFADefs
   open DFA
   open Iso
@@ -71,4 +80,5 @@ module _ {ℓN}
       (Decℙ→FinSet (N .Q) X)
       -- Is any state in X accepting?
       (λ x → LiftDecProp (N .isAcc (x .fst)))
-  δ ℙDFA X c q = DecProp∃ (Decℙ→FinSet (N .Q) X) (λ x → {!!})
+  δ ℙDFA X c = ε-closure (FinSetDecℙ∃ N.Q N.Q (ε-closure X) (flip δFunN c))
+
