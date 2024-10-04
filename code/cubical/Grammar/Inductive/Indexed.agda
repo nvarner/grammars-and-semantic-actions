@@ -25,7 +25,7 @@ module _ where
   ⟦ Var a ⟧ g = g a
   ⟦ &e B F ⟧ g = &[ b ∈ B ] ⟦ F b ⟧ g
   ⟦ ⊕e B F ⟧ g = ⊕[ b ∈ B ] ⟦ F b ⟧ g
-  ⟦ ⊗e F F' ⟧ g = ⟦ F ⟧ g ⊗' ⟦ F' ⟧ g
+  ⟦ ⊗e F F' ⟧ g = ⟦ F ⟧ g ⊗ ⟦ F' ⟧ g
 
   module _ {A : Type ℓ} where
     opaque
@@ -55,6 +55,7 @@ module _ where
       map-∘ (⊕e B F) f f' i = LinΣ-elim (λ a → LinΣ-intro a ∘g map-∘ (F a) f f' i)
       map-∘ (⊗e F F') f f' i = map-∘ F f f' i ,⊗ map-∘ F' f f' i
 
+    {-# NO_POSITIVITY_CHECK #-}
     data μ (F : A → Functor A) a : Grammar ℓ where
       roll : ⟦ F a ⟧ (μ F) ⊢ μ F a
 

@@ -68,6 +68,9 @@ record directedGraph : Type (ℓ-suc ℓ) where
   hasUniqueVertices : GraphWalk n → Type _
   hasUniqueVertices gw = isEmbedding (gw .vertices)
 
+  WalkBetween : (u v : ⟨ states ⟩) → Type _
+  WalkBetween u v = Σ[ n ∈ ℕ ] Σ[ gw ∈ GraphWalk n ] (u ≡ start gw) × (v ≡ end gw)
+
   GraphPath : Type _
   GraphPath =
     Σ[ n ∈ ℕ ] (n < card states) × (Σ[ gw ∈ GraphWalk n ] hasUniqueVertices gw)

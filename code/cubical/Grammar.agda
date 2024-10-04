@@ -5,6 +5,7 @@ module Grammar Alphabet where
 
 open import Grammar.Base Alphabet public
 open import Grammar.Properties Alphabet public
+open import Grammar.Lift Alphabet public
 open import Grammar.Bottom Alphabet public
 open import Grammar.Dependent Alphabet public
 open import Grammar.Epsilon Alphabet public

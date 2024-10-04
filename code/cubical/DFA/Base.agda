@@ -9,8 +9,10 @@ open import Cubical.Relation.Nullary.DecidablePropositions
 
 open import Cubical.Data.FinSet
 open import Cubical.Data.Empty as Empty
+import Cubical.Data.Equality as Eq
 
 open import Grammar Alphabet
+open import Grammar.Inductive.Indexed Alphabet as Ind
 open import Grammar.Equivalence Alphabet
 open import Term Alphabet
 open import Helper
@@ -31,149 +33,170 @@ record DFA : Type (ℓ-suc ℓD) where
   isAcc negate q = negateDecProp (isAcc q)
   δ negate = δ
 
-  module _ (q-end : ⟨ Q ⟩) where
-    -- The grammar "Trace q" denotes the type of traces in the DFA
-    -- from state q to q-end
-    data Trace : (q : ⟨ Q ⟩) → Grammar ℓD where
-      nil : ε ⊢ Trace q-end
-      cons : ∀ q c →
-        literal c ⊗' Trace (δ q c) ⊢ Trace q
+  module Trace (q-end : ⟨ Q ⟩) where
+    data Tag : Type ℓD where
+      nil cons : Tag
 
-    record Algebra : Typeω where
-      field
-        the-ℓs : ⟨ Q ⟩ → Level
-        G : (q : ⟨ Q ⟩) → Grammar (the-ℓs q)
-        nil-case : ε ⊢ G q-end
-        cons-case : ∀ q c →
-          literal c ⊗ G (δ q c) ⊢ G q
+    ftor : (q-start : ⟨ Q ⟩) → Functor ⟨ Q ⟩
+    ftor q-start = ⊕e Tag λ where
+      nil → ⊕e (q-start Eq.≡ q-end) λ _ → k (LiftGrammar ε)
+      cons → ⊕e (Lift ⟨ Alphabet ⟩) λ (lift c) →
+        ⊗e (k (LiftGrammar (literal c))) (Var (δ q-start c))
 
-    open Algebra
+    Trace : (q-start : ⟨ Q ⟩) → Grammar ℓD
+    Trace = μ ftor
 
-    opaque
-      unfolding _⊗_
-      initial : Algebra
-      the-ℓs initial _ = ℓD
-      G initial = Trace
-      nil-case initial = nil
-      cons-case initial = cons
+    NIL : ε ⊢ Trace q-end
+    NIL = roll ∘g LinΣ-intro nil ∘g LinΣ-intro Eq.refl ∘g Lift-intro
 
-    record AlgebraHom (alg alg' : Algebra) : Typeω where
-      field
-        f : (q : ⟨ Q ⟩) → alg .G q ⊢ alg' .G q
-        on-nil :
-          f q-end ∘g alg .nil-case ≡ alg' .nil-case
-        on-cons : ∀ q c →
-          f q ∘g alg .cons-case q c ≡
-            alg' .cons-case q c ∘g (⊗-intro id (f (δ q c)))
-      fInit = f init
+    CONS : ∀ q c → literal c ⊗ Trace (δ q c) ⊢ Trace q
+    CONS q c = roll ∘g LinΣ-intro cons ∘g LinΣ-intro (lift c) ∘g Lift-intro ,⊗ id
 
-    open AlgebraHom
+  open Trace public using (Trace)
 
-    opaque
-      unfolding ⊗-intro
-      idAlgebraHom : (alg : Algebra) →
-        AlgebraHom alg alg
-      f (idAlgebraHom alg) q = id
-      on-nil (idAlgebraHom alg) = refl
-      on-cons (idAlgebraHom alg) _ _ = refl
+  -- module _ (q-end : ⟨ Q ⟩) where
+  --   -- The grammar "Trace q" denotes the type of traces in the DFA
+  --   -- from state q to q-end
+  --   data Trace : (q : ⟨ Q ⟩) → Grammar ℓD where
+  --     nil : ε ⊢ Trace q-end
+  --     cons : ∀ q c →
+  --       literal c ⊗' Trace (δ q c) ⊢ Trace q
 
-      AlgebraHom-seq : {alg alg' alg'' : Algebra} →
-        AlgebraHom alg alg' → AlgebraHom alg' alg'' →
-        AlgebraHom alg alg''
-      AlgebraHom-seq ϕ ψ .f q = ψ .f q ∘g ϕ .f q
-      AlgebraHom-seq ϕ ψ .on-nil =
-        cong (ψ .f _ ∘g_) (ϕ .on-nil)  ∙
-        ψ .on-nil
-      AlgebraHom-seq ϕ ψ .on-cons q c =
-        cong (ψ .f q ∘g_) (ϕ .on-cons q c) ∙
-        cong (_∘g ⊗-intro id (ϕ .f (δ q c))) (ψ .on-cons q c)
+  --   record Algebra : Typeω where
+  --     field
+  --       the-ℓs : ⟨ Q ⟩ → Level
+  --       G : (q : ⟨ Q ⟩) → Grammar (the-ℓs q)
+  --       nil-case : ε ⊢ G q-end
+  --       cons-case : ∀ q c →
+  --         literal c ⊗ G (δ q c) ⊢ G q
 
-    module _ (the-alg : Algebra) where
-      opaque
-        unfolding _⊗_
-        recTrace : ∀ {q} → Trace q ⊢ the-alg .G q
-        recTrace {q} w (nil .w pε) = the-alg .nil-case w pε
-        recTrace {q} w (cons .q c .w p⊗) =
-          the-alg .cons-case q c _
-            (p⊗ .fst , (p⊗ .snd .fst) , (recTrace _ (p⊗ .snd .snd)))
+  --   open Algebra
 
-      recInit : Trace init ⊢ the-alg .G init
-      recInit = recTrace
+  --   opaque
+  --     unfolding _⊗_
+  --     initial : Algebra
+  --     the-ℓs initial _ = ℓD
+  --     G initial = Trace
+  --     nil-case initial = nil
+  --     cons-case initial = cons
 
-      opaque
-        unfolding recTrace ⊗-intro initial _⊗_
-        ∃AlgebraHom : AlgebraHom initial the-alg
-        f ∃AlgebraHom q = recTrace {q}
-        on-nil ∃AlgebraHom = refl
-        on-cons ∃AlgebraHom _ _ = refl
+  --   record AlgebraHom (alg alg' : Algebra) : Typeω where
+  --     field
+  --       f : (q : ⟨ Q ⟩) → alg .G q ⊢ alg' .G q
+  --       on-nil :
+  --         f q-end ∘g alg .nil-case ≡ alg' .nil-case
+  --       on-cons : ∀ q c →
+  --         f q ∘g alg .cons-case q c ≡
+  --           alg' .cons-case q c ∘g (⊗-intro id (f (δ q c)))
+  --     fInit = f init
 
-        !AlgebraHom-help :
-          (e e' : AlgebraHom initial the-alg) →
-          (q : ⟨ Q ⟩) →
-          (∀ w p → e .f q w p ≡ e' .f q w p)
-        !AlgebraHom-help e e' q w (nil .w pε) =
-          cong (λ a → a w pε) (e .on-nil) ∙
-          sym (cong (λ a → a w pε) (e' .on-nil))
-        !AlgebraHom-help e e' q w (cons .q c .w p⊗) =
-          cong (λ a → a w p⊗) (e .on-cons q c) ∙
-          cong (λ a → the-alg .cons-case q c _
-            ((p⊗ .fst) , ((p⊗ .snd .fst) , a)))
-            (!AlgebraHom-help e e' (δ q c) _
-              (p⊗ .snd .snd)) ∙
-          sym (cong (λ a → a w p⊗) (e' .on-cons q c))
+  --   open AlgebraHom
 
-      !AlgebraHom :
-        (e e' : AlgebraHom initial the-alg) →
-        (q : ⟨ Q ⟩) →
-        e .f q ≡ e' .f q
-      !AlgebraHom e e' q =
-        funExt (λ w → funExt (λ p → !AlgebraHom-help e e' q w p))
+  --   opaque
+  --     unfolding ⊗-intro
+  --     idAlgebraHom : (alg : Algebra) →
+  --       AlgebraHom alg alg
+  --     f (idAlgebraHom alg) q = id
+  --     on-nil (idAlgebraHom alg) = refl
+  --     on-cons (idAlgebraHom alg) _ _ = refl
 
-    opaque
-      unfolding idAlgebraHom
-      initial→initial≡id :
-        (e : AlgebraHom initial initial) →
-        (q : ⟨ Q ⟩) →
-        (e .f q)
-          ≡
-        id
-      initial→initial≡id e q =
-        !AlgebraHom initial e (idAlgebraHom initial) q
+  --     AlgebraHom-seq : {alg alg' alg'' : Algebra} →
+  --       AlgebraHom alg alg' → AlgebraHom alg' alg'' →
+  --       AlgebraHom alg alg''
+  --     AlgebraHom-seq ϕ ψ .f q = ψ .f q ∘g ϕ .f q
+  --     AlgebraHom-seq ϕ ψ .on-nil =
+  --       cong (ψ .f _ ∘g_) (ϕ .on-nil)  ∙
+  --       ψ .on-nil
+  --     AlgebraHom-seq ϕ ψ .on-cons q c =
+  --       cong (ψ .f q ∘g_) (ϕ .on-cons q c) ∙
+  --       cong (_∘g ⊗-intro id (ϕ .f (δ q c))) (ψ .on-cons q c)
 
-    algebra-η :
-      (e : AlgebraHom initial initial) →
-      fInit e ≡ id
-    algebra-η e = initial→initial≡id e _
+  --   module _ (the-alg : Algebra) where
+  --     opaque
+  --       unfolding _⊗_
+  --       recTrace : ∀ {q} → Trace q ⊢ the-alg .G q
+  --       recTrace {q} w (nil .w pε) = the-alg .nil-case w pε
+  --       recTrace {q} w (cons .q c .w p⊗) =
+  --         the-alg .cons-case q c _
+  --           (p⊗ .fst , (p⊗ .snd .fst) , (recTrace _ (p⊗ .snd .snd)))
 
-  module _ (q-start : ⟨ Q ⟩) where
-    module _ (q-end : ⟨ Q ⟩) where
-      AcceptingTrace : Grammar ℓD
-      AcceptingTrace =
-        LinΣ[ acc ∈ ⟨ isAcc q-end .fst ⟩ ] Trace q-end q-start
+  --     recInit : Trace init ⊢ the-alg .G init
+  --     recInit = recTrace
 
-      Parse = AcceptingTrace
+  --     opaque
+  --       unfolding recTrace ⊗-intro initial _⊗_
+  --       ∃AlgebraHom : AlgebraHom initial the-alg
+  --       f ∃AlgebraHom q = recTrace {q}
+  --       on-nil ∃AlgebraHom = refl
+  --       on-cons ∃AlgebraHom _ _ = refl
 
-      RejectingTrace : Grammar ℓD
-      RejectingTrace =
-        LinΣ[ acc ∈ (⟨ isAcc q-end .fst ⟩ → Empty.⊥) ] Trace q-end q-start
+  --       !AlgebraHom-help :
+  --         (e e' : AlgebraHom initial the-alg) →
+  --         (q : ⟨ Q ⟩) →
+  --         (∀ w p → e .f q w p ≡ e' .f q w p)
+  --       !AlgebraHom-help e e' q w (nil .w pε) =
+  --         cong (λ a → a w pε) (e .on-nil) ∙
+  --         sym (cong (λ a → a w pε) (e' .on-nil))
+  --       !AlgebraHom-help e e' q w (cons .q c .w p⊗) =
+  --         cong (λ a → a w p⊗) (e .on-cons q c) ∙
+  --         cong (λ a → the-alg .cons-case q c _
+  --           ((p⊗ .fst) , ((p⊗ .snd .fst) , a)))
+  --           (!AlgebraHom-help e e' (δ q c) _
+  --             (p⊗ .snd .snd)) ∙
+  --         sym (cong (λ a → a w p⊗) (e' .on-cons q c))
 
-    TraceFrom : Grammar ℓD
-    TraceFrom = LinΣ[ q-end ∈ ⟨ Q ⟩ ] Trace q-end q-start
+  --     !AlgebraHom :
+  --       (e e' : AlgebraHom initial the-alg) →
+  --       (q : ⟨ Q ⟩) →
+  --       e .f q ≡ e' .f q
+  --     !AlgebraHom e e' q =
+  --       funExt (λ w → funExt (λ p → !AlgebraHom-help e e' q w p))
 
-    AcceptingTraceFrom : Grammar ℓD
-    AcceptingTraceFrom =
-      LinΣ[ q-end ∈ ⟨ Q ⟩ ]
-        LinΣ[ acc ∈ ⟨ isAcc q-end .fst ⟩ ] Trace q-end q-start
+  --   opaque
+  --     unfolding idAlgebraHom
+  --     initial→initial≡id :
+  --       (e : AlgebraHom initial initial) →
+  --       (q : ⟨ Q ⟩) →
+  --       (e .f q)
+  --         ≡
+  --       id
+  --     initial→initial≡id e q =
+  --       !AlgebraHom initial e (idAlgebraHom initial) q
 
-    ParseFrom = AcceptingTraceFrom
+  --   algebra-η :
+  --     (e : AlgebraHom initial initial) →
+  --     fInit e ≡ id
+  --   algebra-η e = initial→initial≡id e _
 
-    RejectingTraceFrom : Grammar ℓD
-    RejectingTraceFrom =
-      LinΣ[ q-end ∈ ⟨ Q ⟩ ]
-        LinΣ[ acc ∈ (⟨ isAcc q-end .fst ⟩ → Empty.⊥) ] Trace q-end q-start
+  -- module _ (q-start : ⟨ Q ⟩) where
+  --   module _ (q-end : ⟨ Q ⟩) where
+  --     AcceptingTrace : Grammar ℓD
+  --     AcceptingTrace =
+  --       LinΣ[ acc ∈ ⟨ isAcc q-end .fst ⟩ ] Trace q-end q-start
 
-  InitTrace : Grammar ℓD
-  InitTrace = TraceFrom init
+  --     Parse = AcceptingTrace
 
-  InitParse : Grammar ℓD
-  InitParse = ParseFrom init
+  --     RejectingTrace : Grammar ℓD
+  --     RejectingTrace =
+  --       LinΣ[ acc ∈ (⟨ isAcc q-end .fst ⟩ → Empty.⊥) ] Trace q-end q-start
+
+  --   TraceFrom : Grammar ℓD
+  --   TraceFrom = LinΣ[ q-end ∈ ⟨ Q ⟩ ] Trace q-end q-start
+
+  --   AcceptingTraceFrom : Grammar ℓD
+  --   AcceptingTraceFrom =
+  --     LinΣ[ q-end ∈ ⟨ Q ⟩ ]
+  --       LinΣ[ acc ∈ ⟨ isAcc q-end .fst ⟩ ] Trace q-end q-start
+
+  --   ParseFrom = AcceptingTraceFrom
+
+  --   RejectingTraceFrom : Grammar ℓD
+  --   RejectingTraceFrom =
+  --     LinΣ[ q-end ∈ ⟨ Q ⟩ ]
+  --       LinΣ[ acc ∈ (⟨ isAcc q-end .fst ⟩ → Empty.⊥) ] Trace q-end q-start
+
+  -- InitTrace : Grammar ℓD
+  -- InitTrace = TraceFrom init
+
+  -- InitParse : Grammar ℓD
+  -- InitParse = ParseFrom init

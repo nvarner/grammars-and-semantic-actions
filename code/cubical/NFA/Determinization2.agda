@@ -8,16 +8,19 @@ open import Cubical.Data.SumFin
 open import Cubical.Data.FinSet
 open import Cubical.Data.Nat
 open import Cubical.Data.Sigma
+open import Cubical.Data.List as List
+import Cubical.Data.Equality as Eq
 open import Cubical.HITs.PropositionalTruncation
 import Cubical.HITs.PropositionalTruncation.Monad as PTMonad
 open import Cubical.Relation.Nullary.DecidablePropositions
 
 open import Grammar Alphabet
-open import Grammar.Inductive Alphabet as Inductive
+open import Grammar.Inductive Alphabet as Ind
+import Grammar.Inductive.Indexed Alphabet as IInd
 open import Grammar.Equivalence Alphabet
 open import Term Alphabet
 open import NFA.Base Alphabet
-open import DFA Alphabet
+open import DFA.Base Alphabet
 
 open import Graph.Reachability
 open import Helper
@@ -75,14 +78,9 @@ module _
   hasAcc : ⟨ ε-closed ⟩ → DecProp ℓN
   hasAcc X = DecProp∃ (ε-closed→FinSet X) (λ q → N.isAcc (q .fst))
 
-  hasAcc→accState :
-    (X : ⟨ ε-closed ⟩) (hasAccX : ⟨ hasAcc X .fst ⟩) →
-    Σ[ q ∈ ⟨ ε-closed→FinSet X ⟩ ] ⟨ N.isAcc (q .fst) .fst ⟩
-  hasAcc→accState X hasAccX = {!!}
-
   ε-reach' : ⟨ N.Q ⟩ → Decℙ ⟨ N.Q ⟩
-  ε-reach' q-start q-end .fst = _ , isPropPropTrunc
-  ε-reach' q-start q-end .snd = DecReachable ε-graph q-end q-start
+  ε-reach' q-end q-start .fst = _ , isPropPropTrunc
+  ε-reach' q-end q-start .snd = DecReachable ε-graph q-start q-end
 
   opaque
     unfolding ε-trans-from ε-trans-into
@@ -124,14 +122,14 @@ module _
 
   private module D = DFA determinized
 
-  NFA→DFA : N.InitParse ⊢ D.InitParse
-  NFA→DFA = N.recInit (record
-    { the-ℓs = λ _ → ℓ-suc ℓN
-    ; G = λ q → D.InitParse
-    ; nil-case = λ {q} q-is-acc → LinΣ-intro D.init ∘g LinΣ-intro {!!} ∘g D.nil
-    ; cons-case = {!!}
-    ; ε-cons-case = {!!}
-    })
+  -- NFA→DFA : N.InitParse ⊢ D.InitParse
+  -- NFA→DFA = N.recInit (record
+  --   { the-ℓs = λ _ → ℓ-suc ℓN
+  --   ; G = λ q → D.InitParse
+  --   ; nil-case = λ {q} q-is-acc → LinΣ-intro D.init ∘g LinΣ-intro {!!} ∘g D.nil
+  --   ; cons-case = {!!}
+  --   ; ε-cons-case = {!!}
+  --   })
 
   -- DFA→NFA : D.InitParse ⊢ N.InitParse
   -- DFA→NFA = LinΣ-elim (λ X@(X' , X'-is-ε-closed) → LinΣ-elim (λ X-is-acc → D.recInit X (record
@@ -145,51 +143,89 @@ module _
 
   module Nondet where
     data Ctor {ℓ} : Type ℓ where
-      [-] ∷ : Ctor
+      [] ∷ : Ctor
 
     data Side {ℓ} : Type ℓ where
       left right : Side
 
     endo : (G : Grammar ℓ) → Endofunctor ℓ
     endo G = ⊕e Ctor (λ where
-      [-] → k G
+      [] → k ⊤*
       ∷ → &e Side (λ where
-        left → Var
+        left → k G
         right → Var))
 
     Nondet : (G : Grammar ℓ) → Grammar ℓ
     Nondet G = μ (endo G)
 
-    Nondet-Algebra : (G : Grammar ℓ) → Grammar ℓ → Type ℓ
-    Nondet-Algebra G = Inductive.Algebra (endo G)
+    NIL : {G : Grammar ℓ} → ⊤* ⊢ Nondet G
+    NIL = roll ∘g LinΣ-intro []
 
-    Nondet-rec : {G H : Grammar ℓ} → Nondet-Algebra G H → Nondet G ⊢ H
-    Nondet-rec = Inductive.rec
-
-    Ctor-[-] : {}
+    CONS : {G : Grammar ℓ} → G & Nondet G ⊢ Nondet G
+    CONS = roll ∘g LinΣ-intro ∷ ∘g LinΠ-intro λ where
+      left → &-π₁
+      right → &-π₂
 
     bind : {G H : Grammar ℓ} → (G ⊢ Nondet H) → Nondet G ⊢ Nondet H
-    bind f = Nondet-rec (λ w → λ where
-      ([-] , x) → f w x
-      --(∷ , x) → (roll ∘g (LinΣ-intro ∷ ∘g LinΠ-intro (λ { left → {!bind f!} ; right → {!!}}))) w x)
-      (∷ , x) → {!!} w x)
+    bind f = Ind.rec (LinΣ-elim λ where
+      [] → roll ∘g LinΣ-intro []
+      ∷ → roll ∘g LinΣ-intro ∷ ∘g LinΠ-intro λ where
+        left → {!f!} ∘g LinΠ-app left
+        right → {!!})
 
-  DFA→NFA : LinΣ[ q ∈ ⟨ D.Q ⟩ ] D.ParseFrom q ⊢ LinΣ[ q ∈ ⟨ N.Q ⟩ ] N.Parse q
-  DFA→NFA = LinΣ-elim (λ qD-start →
-    LinΣ-elim (λ qD-end → LinΣ-elim (λ qD-end-is-acc →
-      D.recTrace qD-end (record
-        { the-ℓs = λ _ → ℓN
-        ; G = λ _ → LinΣ[ q ∈ ⟨ N.Q ⟩ ] N.Parse q
-        ; nil-case =
-          let (qN , qN-isAcc) = hasAcc→accState qD-end {!qD-end-is-acc!} in
-          LinΣ-intro (qN .fst) ∘g {!N.nil!}
-        ; cons-case = λ q c → {!!}
-        }))))
+    pure : {G : Grammar ℓ} → G ⊢ Nondet G
+    pure = CONS ∘g &-intro id (NIL ∘g ⊤*-intro)
 
-  logicalEquivalence : isLogicallyEquivalent N.InitParse D.InitParse
-  logicalEquivalence .fst = NFA→DFA
-  logicalEquivalence .snd = {!!}
+  open Nondet using (Nondet)
 
-  weakEquivalence : isWeaklyEquivalent N.InitParse D.InitParse
-  weakEquivalence = isLogicalEquivalence→WeakEquivalence _ _ logicalEquivalence
+  ε-reach→List :
+    (q : ⟨ N.Q ⟩) →
+    List (
+      Σ[ s ∈ ⟨ N.Q ⟩ ]
+      Σ[ s∈ε-reach-q ∈ ⟨ ε-reach q .fst s .fst ⟩ ]
+      ε-graph.WalkBetween s q)
+  ε-reach→List q = {!!}
+
+  DFA→NondetNFA :
+    (Q-end : ⟨ D.Q ⟩) (q-start : ⟨ N.Q ⟩) →
+    D.Trace Q-end (ε-reach q-start) ⊢
+    (Nondet
+    (LinΣ[ q-end ∈ ⟨ N.Q ⟩ ] LinΣ[ q∈Q-end ∈ ⟨ Q-end .fst q-end .fst ⟩ ]
+    LiftGrammar (N.Trace q-end q-start)))
+  DFA→NondetNFA Q-end q-start = IInd.rec (D.Trace.ftor Q-end)
+    {g = λ x → (Nondet
+    (LinΣ[ q-end ∈ ⟨ N.Q ⟩ ] LinΣ[ q∈Q-end ∈ ⟨ Q-end .fst q-end .fst ⟩ ]
+    LiftGrammar (N.Trace q-end q-start)))}
+    alg
+    (ε-reach q-start)
+    where
+    alg : IInd.Algebra (D.Trace.ftor Q-end) _
+    alg Q-start = LinΣ-elim λ where
+      D.Trace.nil → LinΣ-elim λ where
+        Eq.refl → List.foldl
+          ((λ acc (s , s∈ε-reach-q , gw) →
+            Nondet.CONS ∘g &-intro
+              {!LinΣ-intro ?!}
+              acc))
+          (Nondet.NIL ∘g ⊤*-intro) (ε-reach→List q-start)
+      D.Trace.cons → LinΣ-elim (λ (lift c) → {!!})
+
+  -- DFA→NFA : LinΣ[ q ∈ ⟨ D.Q ⟩ ] D.ParseFrom q ⊢ LinΣ[ q ∈ ⟨ N.Q ⟩ ] N.Parse q
+  -- DFA→NFA = LinΣ-elim (λ qD-start →
+  --   LinΣ-elim (λ qD-end → LinΣ-elim (λ qD-end-is-acc →
+  --     D.recTrace qD-end (record
+  --       { the-ℓs = λ _ → ℓN
+  --       ; G = λ _ → LinΣ[ q ∈ ⟨ N.Q ⟩ ] N.Parse q
+  --       ; nil-case =
+  --         let (qN , qN-isAcc) = hasAcc→accState qD-end {!qD-end-is-acc!} in
+  --         LinΣ-intro (qN .fst) ∘g {!N.nil!}
+  --       ; cons-case = λ q c → {!!}
+  --       }))))
+
+  -- logicalEquivalence : isLogicallyEquivalent N.InitParse D.InitParse
+  -- logicalEquivalence .fst = NFA→DFA
+  -- logicalEquivalence .snd = {!!}
+
+  -- weakEquivalence : isWeaklyEquivalent N.InitParse D.InitParse
+  -- weakEquivalence = isLogicalEquivalence→WeakEquivalence _ _ logicalEquivalence
 
