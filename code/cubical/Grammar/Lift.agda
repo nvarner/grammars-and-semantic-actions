@@ -11,3 +11,8 @@ Lift-intro :
   g ⊢ LiftGrammar {ℓG} {ℓG'} g
 Lift-intro = λ w z → lift z
 
+Lift-elim :
+  ∀ {ℓG ℓG'} {g : Grammar ℓG} →
+  LiftGrammar {ℓG} {ℓG'} g ⊢ g
+Lift-elim = λ w (lift x) → x
+

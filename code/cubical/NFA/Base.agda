@@ -76,15 +76,27 @@ record NFA : Type (ℓ-suc ℓN) where
 
   open Trace public using (Trace)
 
-  -- The grammar "Parse q" denotes the type of traces in the NFA
-  -- from state q to an accepting state
-  data Parse : (q : ⟨ Q ⟩) → Grammar ℓN where
-    nil : ∀ {q} → isAcc q .fst .fst →
-      ε ⊢ Parse q
-    cons : ∀ tr →
-      literal (label tr) ⊗' Parse (dst tr) ⊢ Parse (src tr)
-    ε-cons : ∀ εtr →
+  -- -- The grammar "Parse q" denotes the type of traces in the NFA
+  -- -- from state q to an accepting state
+  -- data Parse : (q : ⟨ Q ⟩) → Grammar ℓN where
+  --   nil : ∀ {q} → isAcc q .fst .fst →
+  --     ε ⊢ Parse q
+  --   cons : ∀ tr →
+  --     literal (label tr) ⊗' Parse (dst tr) ⊢ Parse (src tr)
+  --   ε-cons : ∀ εtr →
+  --     Parse (ε-dst εtr) ⊢ Parse (ε-src εtr)
+
+  Parse : (q : ⟨ Q ⟩) → Grammar ℓN
+  Parse q = LinΣ[ q-end ∈ ⟨ Q ⟩ ] LinΣ[ q-end-acc ∈ ⟨ isAcc q-end .fst ⟩ ] Trace q-end q
+
+  module Parse where
+    NIL : ∀ {q} → ⟨ isAcc q .fst ⟩ → ε ⊢ Parse q
+    NIL {q = q} q-is-acc = LinΣ-intro q ∘g LinΣ-intro q-is-acc ∘g Trace.NIL q
+
+    ε-CONS : ∀ εtr →
       Parse (ε-dst εtr) ⊢ Parse (ε-src εtr)
+    ε-CONS εtr = LinΣ-elim λ q → LinΣ-elim λ q-is-acc →
+      LinΣ-intro q ∘g LinΣ-intro q-is-acc ∘g Trace.ε-CONS q εtr
 
   InitParse : Grammar ℓN
   InitParse = Parse init
